@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1 - 06/07/2026
+
+### Changed
+
+- Versao de release BeeFood apos merge do upstream uazapi 0.2.2 (fix de detecao de sessao).
+
 ## 0.2.2 - 06/07/2026
 
 ### Fixed
