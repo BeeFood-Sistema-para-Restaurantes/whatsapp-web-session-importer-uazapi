@@ -83,6 +83,18 @@
 
 ## Log de sessões
 
+### 2026-07-06 — Merge upstream uazapi 0.2.2
+- **`git fetch upstream`:** 2 commits novos em `upstream/main` (`2ecf7b0` README, `8d3cdc8` fix
+  detecção de sessão 0.2.2).
+- **Commit Beefood já existia:** `c7941fe` (automação, branding, bridge, docs, cron spec, etc.).
+- **Merge concluído:** `2619cd2` = `Merge upstream/main (uazapi 0.2.2) — session detection fix`.
+  - Upstream: `isWhatsAppLoggedIn`/`isWhatsAppWebLoggedInTab` passam a checar **elemento visível**
+    (remove heurística `WHATSAPP_QR_HINTS`); +2 testes em `test/core.test.ts`.
+  - Preservado: customizações BeeFood (`closeTab`, `auto`, `autoOpenPanel=false`, manifest 0.3.0, etc.).
+- **Validação:** typecheck + **12/12** testes + build OK.
+- **Push:** `origin/main` atualizado (`c7941fe..2619cd2`). Divergência vs upstream: **2 commits à frente**
+  (nosso fork + merge commit), **0 atrás**.
+
 ### 2026-07-03 — Botão "Desligar conexão" (destravar operador)
 - **Dor:** operador que clica no método errado (QR) fica preso — só existia "Reiniciar
   conexão", que recria a instância e volta a gerar QR (loop).
