@@ -15,7 +15,10 @@ export const APP_BRIDGE_MATCHES = [...EXTENSION_CUSTOMIZATION.appBridge.matches]
 
 export const AUTOFILL_PARAMS = {
   client: "client",
-  token: "token"
+  token: "token",
+  // When "1"/"true", the panel auto-starts the migration once WhatsApp Web is
+  // logged in. Used by the Beefood SaaS bridge for a hands-off flow.
+  auto: "auto"
 } as const;
 
 export const STORAGE_KEYS = {
@@ -48,7 +51,10 @@ export const PORT_MESSAGE_TYPES = {
 } as const;
 
 export const CONTENT_MESSAGE_TYPES = {
-  openPanel: "SESSION_CONNECTOR_OPEN_PANEL"
+  openPanel: "SESSION_CONNECTOR_OPEN_PANEL",
+  // Content script asks the service worker to close its own WhatsApp Web tab
+  // after a successful hands-off migration (Beefood auto flow).
+  closeTab: "SESSION_CONNECTOR_CLOSE_TAB"
 } as const;
 
 export const APP_BRIDGE_MESSAGE_TYPES = {

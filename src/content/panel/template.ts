@@ -18,12 +18,13 @@ export function panelTemplate(version: string): string {
         --connector-muted: rgba(0, 0, 0, 0.6);
         --connector-line: rgba(0, 0, 0, 0.1);
         --connector-panel-border: rgba(0, 0, 0, 0.1);
-        --connector-accent: #1daa61;
-        --connector-accent-hover: #1b8755;
+        /* Beefood brand accent (vermelho #ef3f37); verde mantido em --connector-ok (sucesso). */
+        --connector-accent: #ef3f37;
+        --connector-accent-hover: #d92f28;
         --connector-accent-text: #ffffff;
         --connector-hover: rgba(194, 189, 184, 0.15);
         --connector-notice: #f7f5f3;
-        --connector-focus: rgba(29, 170, 97, 0.3);
+        --connector-focus: rgba(239, 63, 55, 0.3);
         --connector-danger: #ea0038;
         --connector-danger-soft: #fde8eb;
         --connector-ok: #1b8755;
@@ -31,8 +32,8 @@ export function panelTemplate(version: string): string {
         --connector-warn: #a5691b;
         --connector-warn-soft: #fff7e5;
         --connector-warn-border: rgba(197, 135, 48, 0.35);
-        --connector-shadow: 0 16px 44px rgba(11, 20, 26, 0.22), 0 0 22px rgba(29, 170, 97, 0.18);
-        --connector-primary-shadow: rgba(29, 170, 97, 0.2);
+        --connector-shadow: 0 16px 44px rgba(11, 20, 26, 0.22), 0 0 22px rgba(239, 63, 55, 0.18);
+        --connector-primary-shadow: rgba(239, 63, 55, 0.2);
         --connector-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
         display: block;
         font-family: var(--connector-font);
@@ -52,12 +53,13 @@ export function panelTemplate(version: string): string {
         --connector-text: #fafafa;
         --connector-muted: rgba(255, 255, 255, 0.6);
         --connector-line: rgba(255, 255, 255, 0.1);
-        --connector-accent: #21c063;
-        --connector-accent-hover: #1daa61;
-        --connector-accent-text: #0a0a0a;
+        /* Beefood brand accent (vermelho, tom mais claro p/ dark); verde mantido em --connector-ok. */
+        --connector-accent: #ff4d43;
+        --connector-accent-hover: #ef3f37;
+        --connector-accent-text: #ffffff;
         --connector-hover: rgba(255, 255, 255, 0.1);
         --connector-notice: #161717;
-        --connector-focus: rgba(33, 192, 99, 0.3);
+        --connector-focus: rgba(255, 77, 67, 0.3);
         --connector-danger: #fb5061;
         --connector-danger-soft: #321622;
         --connector-ok: #71eb85;
@@ -65,9 +67,9 @@ export function panelTemplate(version: string): string {
         --connector-warn: #ffd279;
         --connector-warn-soft: #362c1f;
         --connector-warn-border: rgba(255, 210, 121, 0.32);
-        --connector-panel-border: rgba(33, 192, 99, 0.28);
-        --connector-shadow: 0 18px 46px rgba(0, 0, 0, 0.6), 0 0 30px rgba(33, 192, 99, 0.28);
-        --connector-primary-shadow: rgba(33, 192, 99, 0.24);
+        --connector-panel-border: rgba(255, 77, 67, 0.28);
+        --connector-shadow: 0 18px 46px rgba(0, 0, 0, 0.6), 0 0 30px rgba(255, 77, 67, 0.28);
+        --connector-primary-shadow: rgba(255, 77, 67, 0.24);
       }
 
       * {
@@ -539,6 +541,87 @@ export function panelTemplate(version: string): string {
           width: auto;
         }
       }
+      /* ---- Beefood: fluxo automático (UI simples) ---- */
+      @keyframes wsc-spin {
+        to { transform: rotate(360deg); }
+      }
+
+      .auto-panel {
+        align-items: center;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 10px 8px 4px;
+        text-align: center;
+      }
+
+      .auto-spinner {
+        animation: wsc-spin 1s linear infinite;
+        border: 3px solid var(--connector-line);
+        border-radius: 50%;
+        border-top-color: var(--connector-accent);
+        height: 42px;
+        width: 42px;
+      }
+
+      .auto-panel[data-state="waiting"] .auto-spinner {
+        animation-duration: 1.6s;
+      }
+
+      .auto-panel[data-state="done"] .auto-spinner {
+        animation: none;
+        border-color: var(--connector-ok);
+        position: relative;
+      }
+
+      .auto-panel[data-state="done"] .auto-spinner::after {
+        border-bottom: 3px solid var(--connector-ok);
+        border-right: 3px solid var(--connector-ok);
+        content: "";
+        height: 18px;
+        left: 50%;
+        position: absolute;
+        top: 46%;
+        transform: translate(-50%, -60%) rotate(45deg);
+        width: 9px;
+      }
+
+      .auto-panel[data-state="error"] .auto-spinner {
+        animation: none;
+        border-color: var(--connector-danger);
+      }
+
+      .auto-status {
+        color: var(--connector-text);
+        font-size: 14px;
+        line-height: 1.4;
+        margin: 0;
+      }
+
+      /* No modo simples escondemos os campos técnicos e o botão vira fallback discreto. */
+      .panel.simple .field-advanced,
+      .panel.simple #cleanupNotice {
+        display: none !important;
+      }
+
+      .panel:not(.simple) #autoPanel {
+        display: none;
+      }
+
+      .panel.simple #importButton {
+        background: transparent;
+        border: 1px solid var(--connector-line);
+        box-shadow: none;
+        color: var(--connector-muted);
+        font-size: 12px;
+        font-weight: 500;
+        padding: 8px 12px;
+      }
+
+      .panel.simple #importButton:hover:not(:disabled) {
+        background: var(--connector-hover);
+        color: var(--connector-text);
+      }
     </style>
 
     <section class="panel" role="dialog" aria-label="${PANEL_TEXT.title}">
@@ -561,11 +644,15 @@ export function panelTemplate(version: string): string {
       </header>
 
       <form id="importForm">
-        <label>
+        <div id="autoPanel" class="auto-panel" data-state="waiting">
+          <div class="auto-spinner" aria-hidden="true"></div>
+          <p id="autoStatus" class="auto-status">${PANEL_TEXT.autoWaiting}</p>
+        </div>
+        <label id="clientField" class="field-advanced">
           ${PANEL_TEXT.clientLabel}
           <input id="serverUrlInput" type="text" autocomplete="off" spellcheck="false" placeholder="${PANEL_TEXT.clientPlaceholder}" />
         </label>
-        <label>
+        <label id="tokenField" class="field-advanced">
           ${PANEL_TEXT.tokenLabel}
           <span class="token-field">
             <input id="instanceTokenInput" type="password" autocomplete="off" placeholder="${PANEL_TEXT.tokenPlaceholder}" />
@@ -590,8 +677,8 @@ export function panelTemplate(version: string): string {
             </button>
           </span>
         </label>
-        <label id="includeHistoryOption" class="check">
-          <input id="includeHistoryCheckbox" type="checkbox" checked />
+        <label id="includeHistoryOption" class="check field-advanced">
+          <input id="includeHistoryCheckbox" type="checkbox" />
           <span>${PANEL_TEXT.includeHistory}</span>
         </label>
         <label id="disconnectLocalOption" class="check dev-only" hidden>

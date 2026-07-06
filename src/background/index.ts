@@ -1,5 +1,6 @@
 // @ts-nocheck
 import {
+  APP_BRIDGE_SOURCE,
   DEFAULT_INCLUDE_HISTORY,
   STORAGE_KEYS,
   WHATSAPP_WEB_URL_PREFIX
@@ -407,7 +408,7 @@ async function openPanelInTab(tab) {
   }
 }
 
-async function openWhatsAppWithAutofill(client, token) {
+async function openWhatsAppWithAutofill(client, token, auto) {
   const params = new URLSearchParams();
   if (client) {
     params.set("client", String(client));
@@ -415,20 +416,65 @@ async function openWhatsAppWithAutofill(client, token) {
   if (token) {
     params.set("token", String(token));
   }
+  if (auto) {
+    params.set("auto", "1");
+  }
   const suffix = params.toString() ? `#${params.toString()}` : "";
   const url = `${WHATSAPP_WEB_URL_PREFIX}${suffix}`;
   const tab = await chrome.tabs.create({ url, active: true });
   return { ok: true, tabId: tab.id };
 }
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (!message || message.type !== APP_BRIDGE_MESSAGE_TYPES.startImport) {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (!message) {
     return false;
   }
-  openWhatsAppWithAutofill(message.client || "", message.token || "")
-    .then(sendResponse)
-    .catch((error) => sendResponse({ ok: false, error: error.message || "Falha ao abrir WhatsApp Web" }));
-  return true;
+  if (message.type === APP_BRIDGE_MESSAGE_TYPES.startImport) {
+    openWhatsAppWithAutofill(message.client || "", message.token || "", message.auto === true)
+      .then(sendResponse)
+      .catch((error) => sendResponse({ ok: false, error: error.message || "Falha ao abrir WhatsApp Web" }));
+    return true;
+  }
+  if (message.type === CONTENT_MESSAGE_TYPES.closeTab) {
+    const tabId = sender?.tab?.id;
+    if (typeof tabId !== "number") {
+      sendResponse({ ok: false, error: "Aba não identificada" });
+      return false;
+    }
+    chrome.tabs.remove(tabId)
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) => sendResponse({ ok: false, error: error?.message || "Falha ao fechar aba" }));
+    return true;
+  }
+  return false;
+});
+
+// Direct channel for pages listed in manifest.externally_connectable
+// (bot2.beefood.com.br, Lovable preview, localhost). This complements the
+// content-script postMessage bridge: the SaaS can use whichever is available.
+chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) => {
+  if (!message || !message.type) {
+    return false;
+  }
+  if (message.type === APP_BRIDGE_MESSAGE_TYPES.ping) {
+    sendResponse({
+      source: APP_BRIDGE_SOURCE,
+      type: APP_BRIDGE_MESSAGE_TYPES.ready,
+      version: chrome.runtime?.getManifest?.().version || ""
+    });
+    return false;
+  }
+  if (message.type === APP_BRIDGE_MESSAGE_TYPES.startImport || message.type === APP_BRIDGE_MESSAGE_TYPES.openWhatsApp) {
+    openWhatsAppWithAutofill(message.client || "", message.token || "", message.auto === true)
+      .then((result) => sendResponse({ source: APP_BRIDGE_SOURCE, type: APP_BRIDGE_MESSAGE_TYPES.started, ...result }))
+      .catch((error) => sendResponse({
+        source: APP_BRIDGE_SOURCE,
+        type: APP_BRIDGE_MESSAGE_TYPES.error,
+        error: error.message || "Falha ao abrir WhatsApp Web"
+      }));
+    return true;
+  }
+  return false;
 });
 
 chrome.action.onClicked.addListener((tab) => {

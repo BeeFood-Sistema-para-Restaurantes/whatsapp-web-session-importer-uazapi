@@ -38,6 +38,14 @@ describe("autofill hash helpers", () => {
     expect(parseAutofillHash("https://web.whatsapp.com/#client=acme&token=abc")).toEqual({
       client: "acme",
       token: "abc",
+      auto: false,
+      hasClient: true,
+      hasToken: true
+    });
+    expect(parseAutofillHash("https://web.whatsapp.com/#client=acme&token=abc&auto=1")).toEqual({
+      client: "acme",
+      token: "abc",
+      auto: true,
       hasClient: true,
       hasToken: true
     });

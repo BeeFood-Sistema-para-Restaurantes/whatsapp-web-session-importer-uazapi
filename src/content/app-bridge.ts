@@ -5,6 +5,7 @@ type PageCommand = {
   type?: string;
   client?: string;
   token?: string;
+  auto?: boolean;
 };
 
 const guard = window as Window & { __whatsAppSessionConnectorBridge?: boolean };
@@ -38,7 +39,8 @@ if (!guard.__whatsAppSessionConnectorBridge) {
       void chrome.runtime.sendMessage({
         type: APP_BRIDGE_MESSAGE_TYPES.startImport,
         client: data.client || "",
-        token: data.token || ""
+        token: data.token || "",
+        auto: data.auto === true
       })
         .then((response) => {
           window.postMessage({

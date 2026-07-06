@@ -3,6 +3,7 @@ import { AUTOFILL_PARAMS, CLIENT_BASE_DOMAIN, WHATSAPP_WEB_ORIGIN } from "./conf
 export interface AutofillHash {
   client: string;
   token: string;
+  auto: boolean;
   hasClient: boolean;
   hasToken: boolean;
 }
@@ -87,9 +88,11 @@ export function parseAutofillHash(rawUrl: unknown): AutofillHash | null {
     return null;
   }
 
+  const rawAuto = String(params.get(AUTOFILL_PARAMS.auto) || "").trim().toLowerCase();
   return {
     client: String(params.get(AUTOFILL_PARAMS.client) || "").trim(),
     token: String(params.get(AUTOFILL_PARAMS.token) || "").trim(),
+    auto: rawAuto === "1" || rawAuto === "true",
     hasClient,
     hasToken
   };
@@ -110,7 +113,7 @@ export function removeAutofillHashParams(rawUrl: unknown): string | null {
 
   const params = new URLSearchParams(rawHash.startsWith("?") ? rawHash.slice(1) : rawHash);
   let changed = false;
-  for (const key of [AUTOFILL_PARAMS.client, AUTOFILL_PARAMS.token]) {
+  for (const key of [AUTOFILL_PARAMS.client, AUTOFILL_PARAMS.token, AUTOFILL_PARAMS.auto]) {
     if (params.has(key)) {
       params.delete(key);
       changed = true;

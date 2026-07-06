@@ -34,8 +34,15 @@ import { PANEL_HOST_ID, PANEL_TEXT, panelTemplate } from "./panel/template";
 
   const DEV_MODE_TOGGLE_CLICKS = 5;
   const DEV_MODE_TOGGLE_WINDOW_MS = 2500;
+  // Hands-off flow (Beefood SaaS): after arriving with #auto=1 the panel waits for
+  // WhatsApp Web login and then starts the migration by itself.
+  const AUTO_IMPORT_LOGIN_POLL_MS = 1500;
+  const AUTO_IMPORT_LOGIN_MAX_MS = 180000;
   const DEFAULT_USER_SETTINGS = {
-    autoOpenPanel: true,
+    // Beefood: o painel NÃO abre em toda visita ao WhatsApp Web. Ele só abre
+    // quando a aba é aberta pelo nosso fluxo (URL com #client&token&auto=1) ou
+    // por clique manual no ícone da extensão. Ligar isso volta ao "abrir sempre".
+    autoOpenPanel: false,
     themeMode: "auto"
   };
 
@@ -51,7 +58,9 @@ import { PANEL_HOST_ID, PANEL_TEXT, panelTemplate } from "./panel/template";
     settingsOpen: false,
     userSettings: { ...DEFAULT_USER_SETTINGS },
     devModeClickCount: 0,
-    devModeClickTimer: null
+    devModeClickTimer: null,
+    autoImport: false,
+    autoImportTimer: null
   };
 
   function extensionContextError(error) {
@@ -144,7 +153,7 @@ import { PANEL_HOST_ID, PANEL_TEXT, panelTemplate } from "./panel/template";
     const raw = value && typeof value === "object" ? value : {};
     const themeMode = ["auto", "light", "dark"].includes(String(raw.themeMode)) ? String(raw.themeMode) : DEFAULT_USER_SETTINGS.themeMode;
     return {
-      autoOpenPanel: raw.autoOpenPanel !== false,
+      autoOpenPanel: raw.autoOpenPanel === true,
       themeMode
     };
   }
@@ -171,11 +180,56 @@ import { PANEL_HOST_ID, PANEL_TEXT, panelTemplate } from "./panel/template";
       return false;
     }
 
+    state.autoImport = autofill.auto === true;
     await storageSet({
       [STORAGE_KEYS.serverUrl]: autofill.client,
       [STORAGE_KEYS.instanceToken]: autofill.token || ""
     });
     return true;
+  }
+
+  function clearAutoImportTimer() {
+    if (state.autoImportTimer) {
+      clearTimeout(state.autoImportTimer);
+      state.autoImportTimer = null;
+    }
+  }
+
+  function scheduleAutoImport() {
+    if (!state.autoImport || state.importRunning) {
+      return;
+    }
+    clearAutoImportTimer();
+    const startedAt = Date.now();
+    const attempt = () => {
+      if (!state.autoImport || state.importRunning) {
+        return;
+      }
+      if (!hasExtensionContext()) {
+        markExtensionContextInvalidated();
+        return;
+      }
+      if (isWhatsAppLoggedIn()) {
+        state.autoImport = false;
+        clearAutoImportTimer();
+        setAutoStatus(PANEL_TEXT.autoDetecting, "working");
+        setResult(PANEL_TEXT.autoDetecting);
+        startImport({ preventDefault() {} }).catch((error) => {
+          warnIfActiveContext("Auto import failed to start", error);
+        });
+        return;
+      }
+      if (Date.now() - startedAt > AUTO_IMPORT_LOGIN_MAX_MS) {
+        clearAutoImportTimer();
+        setAutoStatus(PANEL_TEXT.autoTimeout, "waiting");
+        setResult(PANEL_TEXT.autoTimeout, "warn");
+        return;
+      }
+      setStatus(PANEL_TEXT.loggedOutStatus);
+      setAutoStatus(PANEL_TEXT.autoWaiting, "waiting");
+      state.autoImportTimer = setTimeout(attempt, AUTO_IMPORT_LOGIN_POLL_MS);
+    };
+    attempt();
   }
 
   function applyThemeClass() {
@@ -221,6 +275,67 @@ import { PANEL_HOST_ID, PANEL_TEXT, panelTemplate } from "./panel/template";
     const loggedIn = isWhatsAppLoggedIn();
     setStatus(loggedIn ? PANEL_TEXT.defaultStatus : PANEL_TEXT.loggedOutStatus);
     return loggedIn;
+  }
+
+  function panelSection() {
+    return state.root?.querySelector(".panel") || null;
+  }
+
+  // Bloco automático (modo simples): mensagem grande + estado do spinner.
+  function setAutoStatus(message, dataState) {
+    const label = panelEl("autoStatus");
+    if (label && message !== undefined) {
+      label.textContent = message || "";
+    }
+    if (dataState) {
+      const panel = panelEl("autoPanel");
+      if (panel) {
+        panel.dataset.state = dataState;
+      }
+    }
+  }
+
+  function closeCurrentTab() {
+    if (!hasExtensionContext()) {
+      return;
+    }
+    try {
+      chrome.runtime.sendMessage({ type: CONTENT_MESSAGE_TYPES.closeTab }, () => {
+        // Swallow lastError: se a aba já fechou o callback ainda dispara.
+        void chrome.runtime?.lastError;
+      });
+    } catch (error) {
+      warnIfActiveContext("Failed to request tab close", error);
+    }
+  }
+
+  // Após migrar com sucesso no modo simples: mostra "concluído" e fecha a aba.
+  function handleSimpleSuccess() {
+    if (state.devMode) {
+      return;
+    }
+    setAutoStatus(PANEL_TEXT.autoDone, "done");
+    setTimeout(() => {
+      setAutoStatus(PANEL_TEXT.autoClosing, "done");
+      closeCurrentTab();
+    }, 2500);
+  }
+
+  async function updateAutoIdleStatus() {
+    if (state.devMode || state.importRunning) {
+      return;
+    }
+    const values = await storageGet([STORAGE_KEYS.serverUrl, STORAGE_KEYS.instanceToken]);
+    const hasCredentials = Boolean(values[STORAGE_KEYS.serverUrl]);
+    if (!hasCredentials) {
+      setAutoStatus(PANEL_TEXT.autoNoCredentials, "error");
+      return;
+    }
+    if (isWhatsAppLoggedIn()) {
+      setAutoStatus(PANEL_TEXT.defaultStatus, "waiting");
+    } else {
+      setAutoStatus(PANEL_TEXT.autoWaiting, "waiting");
+    }
   }
 
   function setBusy(busy) {
@@ -323,6 +438,14 @@ import { PANEL_HOST_ID, PANEL_TEXT, panelTemplate } from "./panel/template";
     const modeLabel = panelEl("modeLabel");
     if (modeLabel) {
       modeLabel.textContent = state.devMode ? PANEL_TEXT.modeTechnical : PANEL_TEXT.modeDefault;
+    }
+    const panel = panelSection();
+    if (panel) {
+      panel.classList.toggle("simple", !state.devMode);
+    }
+    const importButton = panelEl("importButton");
+    if (importButton) {
+      importButton.textContent = state.devMode ? PANEL_TEXT.importButton : PANEL_TEXT.fallbackButton;
     }
     renderCleanupNotice();
     setBusy(state.importRunning);
@@ -464,10 +587,15 @@ import { PANEL_HOST_ID, PANEL_TEXT, panelTemplate } from "./panel/template";
       setResult(message.message || fallbackMessage, message.kind || "ok");
       setBusy(false);
       closeImportPort();
+      // Modo simples (fluxo Beefood): migração concluída → avisa e fecha a aba.
+      if (!state.devMode) {
+        handleSimpleSuccess();
+      }
       return;
     }
     if (message.type === PORT_MESSAGE_TYPES.error) {
       setResult(message.message || "Falha ao executar comando.", "error");
+      setAutoStatus(message.message || "Falha na migração.", "error");
       setBusy(false);
       closeImportPort();
     }
@@ -518,14 +646,21 @@ import { PANEL_HOST_ID, PANEL_TEXT, panelTemplate } from "./panel/template";
     const includeHistory = shouldIncludeHistoryAfterImport();
     const disconnectLocal = shouldDisconnectLocalAfterImport();
     if (!refreshLoginStatus()) {
+      if (!state.devMode) {
+        setAutoStatus(PANEL_TEXT.autoWaiting, "waiting");
+      }
       setResult("Entre no WhatsApp Web antes de migrar a sessão.", "error");
       return;
     }
     if (!client || !token) {
+      if (!state.devMode) {
+        setAutoStatus(PANEL_TEXT.autoNoCredentials, "error");
+      }
       setResult("Informe o nome da assinatura e o token.", "error");
       return;
     }
 
+    setAutoStatus(PANEL_TEXT.autoMigrating, "working");
     setResult("Preparando importação...");
     await saveSettings();
     // The panel only sends user choices. The service worker owns validation,
@@ -649,6 +784,7 @@ import { PANEL_HOST_ID, PANEL_TEXT, panelTemplate } from "./panel/template";
     }
     state.host.style.display = "";
     refreshLoginStatus();
+    await updateAutoIdleStatus();
     return true;
   }
 
@@ -670,9 +806,11 @@ import { PANEL_HOST_ID, PANEL_TEXT, panelTemplate } from "./panel/template";
 
   window.addEventListener("hashchange", () => {
     applyAutofillFromUrl()
-      .then((changed) => {
+      .then(async (changed) => {
         if (changed) {
-          return openPanel();
+          await openPanel();
+          scheduleAutoImport();
+          return true;
         }
         return false;
       })
@@ -682,7 +820,9 @@ import { PANEL_HOST_ID, PANEL_TEXT, panelTemplate } from "./panel/template";
   applyAutofillFromUrl()
     .then(async (changed) => {
       if (changed) {
-        return openPanel();
+        await openPanel();
+        scheduleAutoImport();
+        return true;
       }
       const values = await storageGet([STORAGE_KEYS.userSettings]);
       const userSettings = normalizeUserSettings(values[STORAGE_KEYS.userSettings]);

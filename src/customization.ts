@@ -25,17 +25,39 @@ export const EXTENSION_CUSTOMIZATION = {
     historyChatLimit: 5000
   },
   importDefaults: {
-    // History is useful for continuity, but it depends on WhatsApp Web cache.
-    // The service worker imports the session first and treats history failures
-    // as warnings so this default cannot break the credential migration.
-    includeHistory: true
+    // Beefood flow is hands-off and only needs the session migrated. History
+    // depends on WhatsApp Web cache and is hidden from the simple UI, so we
+    // default it OFF. Technical mode can still enable it.
+    includeHistory: false
   },
   appBridge: {
     source: "whatsapp-session-connector",
-    matches: ["https://*.uazapi.com/*"]
+    // Hosts allowed to talk to the extension bridge (PING/START_IMPORT).
+    // Keep uazapi.com for the reference flow and add the Beefood SaaS domains
+    // (production bot2.beefood.com.br/dashboard + Lovable preview + localhost dev)
+    // so the SaaS can detect the extension and trigger the import. The wildcard
+    // *.beefood.com.br covers bot2 and any future subdomain. Ports are not
+    // supported in match patterns, so localhost matches any port via http://localhost/*.
+    matches: [
+      "https://*.uazapi.com/*",
+      "https://*.beefood.com.br/*",
+      "https://*.lovable.app/*",
+      "https://*.lovableproject.com/*",
+      "https://*.lovable.dev/*",
+      "http://localhost/*"
+    ]
   },
   panelText: {
-    title: "Migrar sessão",
+    title: "BeeFood · Conectar WhatsApp",
+    // Estados do fluxo automático (UI simples, sem digitação).
+    autoWaiting: "Conexão OK — aguardando a leitura do QR Code do WhatsApp Web…",
+    autoDetecting: "Sessão detectada. Preparando a migração…",
+    autoMigrating: "Migrando a sessão para a BeeFood…",
+    autoDone: "Tudo pronto! Sessão conectada à BeeFood.",
+    autoClosing: "Concluído. Fechando esta aba…",
+    autoTimeout: "Escaneie o QR Code do WhatsApp Web para conectar.",
+    autoNoCredentials: "Abra a conexão pelo painel da BeeFood para conectar automaticamente.",
+    fallbackButton: "Conectar manualmente",
     defaultStatus: "WhatsApp Web conectado",
     loggedOutStatus: "Entre no WhatsApp Web para importar",
     clientLabel: "Nome da assinatura",
